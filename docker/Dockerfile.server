@@ -83,6 +83,7 @@ WORKDIR /bridge
 COPY packages/personal-wechat-bridge/package.json ./
 RUN npm install --omit=dev --ignore-scripts --package-lock=false
 COPY packages/personal-wechat-bridge ./
+RUN node --test src/*.test.mjs
 
 # ---- Optional Stage: standalone toolkit + bridge over TCP (live ACP tests) ----
 # A glibc image (claude-agent-acp requires glibc; the wrapper refuses musl)
