@@ -5,6 +5,7 @@ import readline from 'node:readline'
 import { WechatyBuilder, ScanStatus } from 'wechaty'
 import qrcodeTerminal from 'qrcode-terminal'
 import { FileBox } from 'file-box'
+import { collectContext } from './context.mjs'
 import { normalizeMessage } from './normalize.mjs'
 
 function emit(event) {
@@ -31,28 +32,6 @@ function loadConfig() {
 function allowedByList(list, values) {
   if (!Array.isArray(list) || list.length === 0 || list.includes('*')) return true
   return values.some((value) => value && list.includes(value))
-}
-
-async function collectContext(message, bot) {
-  const talker = message.talker()
-  const receiver = message.to()
-  const room = message.room()
-  const [talkerAlias, talkerName, receiverName, roomTopic] = await Promise.all([
-    talker?.alias?.().catch(() => ''),
-    talker?.name?.().catch(() => ''),
-    receiver?.name?.().catch(() => ''),
-    room?.topic?.().catch(() => ''),
-  ])
-  return {
-    bot,
-    talker,
-    receiver,
-    room,
-    roomTopic: roomTopic || '',
-    talkerAlias: talkerAlias || '',
-    talkerName: talkerName || '',
-    receiverName: receiverName || '',
-  }
 }
 
 async function shouldAccept(message, context, cfg) {
