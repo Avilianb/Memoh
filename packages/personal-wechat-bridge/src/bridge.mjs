@@ -124,8 +124,10 @@ export async function startBridge() {
 
   bot.on('scan', (qrcode, status) => {
     if (status === ScanStatus.Waiting || status === ScanStatus.Timeout) {
-      qrcodeTerminal.generate(qrcode, { small: true })
-      log('scan_qr', { status })
+      qrcodeTerminal.generate(qrcode, { small: true }, (output) => {
+        process.stderr.write(`${output}\n`)
+      })
+      log('scan_qr', { status, qrcode: cfg.diagnosticRawPayload ? qrcode : undefined })
     }
     emit({ type: 'status', status: `scan:${ScanStatus[status] || status}` })
   })
