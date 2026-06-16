@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { extractReply, normalizeMessage } from './normalize.mjs'
+import { detectMention, extractReply, normalizeMessage } from './normalize.mjs'
 
 test('extractReply uses explicit raw quote fields', () => {
   const { reply, text } = extractReply(
@@ -53,4 +53,28 @@ test('normalizeMessage maps sender, room, quote and image attachment', async () 
   assert.equal(normalized.replyTarget, 'room:room-1')
   assert.equal(normalized.attachments[0].type, 'image')
   assert.equal(normalized.attachments[0].mime, 'image/jpeg')
+})
+
+test('detectMention accepts WeChat mention spacing and strips leading bot mention', () => {
+  const result = detectMention("@Netr0's Bot\u2005我的名字是什么", {}, { botMentionName: "Netr0's Bot" })
+  assert.equal(result.isMentioned, true)
+  assert.equal(result.text, '我的名字是什么')
+})
+
+test('normalizeMessage marks group bot mention', async () => {
+  const message = {
+    id: 'msg-mention',
+    payload: { roomId: 'room-1', talkerId: 'wxid-a' },
+    type: () => 7,
+    text: () => "@Netr0's Bot\u2005ping",
+  }
+  const room = { id: 'room-1' }
+  const talker = { id: 'wxid-a', self: () => false }
+  const normalized = await normalizeMessage(
+    message,
+    { bot: { Message: { Type: { 7: 'Text' } } }, room, roomTopic: 'Room', talker, talkerName: 'Alice', talkerAlias: 'A' },
+    { botMentionName: "Netr0's Bot", mediaDir: await import('node:os').then((os) => os.tmpdir()) },
+  )
+  assert.equal(normalized.isMentioned, true)
+  assert.equal(normalized.text, 'ping')
 })

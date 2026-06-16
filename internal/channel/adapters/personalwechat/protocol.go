@@ -22,6 +22,7 @@ type bridgeMessage struct {
 	Text         string             `json:"text,omitempty"`
 	Timestamp    string             `json:"timestamp,omitempty"`
 	ReplyTarget  string             `json:"replyTarget,omitempty"`
+	IsMentioned  bool               `json:"isMentioned,omitempty"`
 	Sender       bridgeIdentity     `json:"sender"`
 	Conversation bridgeConversation `json:"conversation"`
 	Reply        *bridgeReply       `json:"reply,omitempty"`
@@ -121,8 +122,9 @@ func buildInboundMessage(msg bridgeMessage) (channel.InboundMessage, bool) {
 		}
 	}
 	meta := map[string]any{
-		"wechat_type": strings.TrimSpace(msg.Type),
-		"target":      target,
+		"wechat_type":  strings.TrimSpace(msg.Type),
+		"target":       target,
+		"is_mentioned": msg.IsMentioned,
 	}
 	if len(msg.Raw) > 0 {
 		meta["raw"] = msg.Raw

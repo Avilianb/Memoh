@@ -17,6 +17,39 @@ function clean(value) {
   return String(value || '').trim()
 }
 
+function escapeRegExp(value) {
+  return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function mentionNameCandidates(context, cfg) {
+  const values = [cfg?.botMentionName, context?.receiverName]
+  const out = []
+  const seen = new Set()
+  for (const value of values) {
+    const name = clean(value).replace(/^@+/, '').trim()
+    if (!name || seen.has(name)) continue
+    seen.add(name)
+    out.push(name)
+  }
+  return out
+}
+
+export function detectMention(text, context = {}, cfg = {}) {
+  const value = String(text || '')
+  for (const name of mentionNameCandidates(context, cfg)) {
+    const escaped = escapeRegExp(name)
+    const token = new RegExp(`(^|\\s)@${escaped}(?=$|\\s)`, 'u')
+    if (!token.test(value)) continue
+
+    const prefix = new RegExp(`^\\s*@${escaped}\\s*`, 'u')
+    return {
+      isMentioned: true,
+      text: value.replace(prefix, '').trim(),
+    }
+  }
+  return { isMentioned: false, text: value }
+}
+
 function safeName(value, fallback) {
   const name = clean(value || fallback).replace(/[^\w.\-()\u4e00-\u9fff]+/g, '_')
   return name || fallback
@@ -137,9 +170,10 @@ export async function extractAttachments(message, cfg, msgType) {
 export async function normalizeMessage(message, context, cfg) {
   const msgType = typeName(message, context.bot)
   const rawText = msgType === 'Text' ? message.text?.() || '' : ''
-  const { reply, text } = extractReply(message.payload || {}, rawText)
+  const { reply, text: replyText } = extractReply(message.payload || {}, rawText)
+  const mention = detectMention(replyText, context, cfg)
   const attachments = await extractAttachments(message, cfg, msgType)
-  if (!clean(text) && attachments.length === 0 && !reply) return null
+  if (!clean(mention.text) && attachments.length === 0 && !reply) return null
   const room = context.room
   const conversation = room
     ? { id: clean(room.id || message.payload?.roomId), type: 'group', name: context.roomTopic }
@@ -147,9 +181,10 @@ export async function normalizeMessage(message, context, cfg) {
   return {
     id: clean(message.id || message.payload?.id),
     type: msgType,
-    text,
+    text: mention.text,
     timestamp: new Date().toISOString(),
     replyTarget: room ? `room:${conversation.id}` : `contact:${clean(context.talker?.id || message.payload?.talkerId)}`,
+    isMentioned: Boolean(room && mention.isMentioned),
     sender: {
       id: clean(context.talker?.id || message.payload?.talkerId),
       name: context.talkerName,
