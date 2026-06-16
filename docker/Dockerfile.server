@@ -77,6 +77,13 @@ COPY cmd/bridge/template /assembly/templates
 COPY docker/toolkit/bin /assembly/toolkit/bin
 RUN chmod +x /assembly/toolkit/bin/*
 
+# ---- Stage 4b: Personal WeChat sidecar dependencies ----
+FROM node:24-alpine AS personal-wechat-bridge-builder
+WORKDIR /bridge
+COPY packages/personal-wechat-bridge/package.json ./
+RUN npm install --omit=dev --ignore-scripts --package-lock=false
+COPY packages/personal-wechat-bridge ./
+
 # ---- Optional Stage: standalone toolkit + bridge over TCP (live ACP tests) ----
 # A glibc image (claude-agent-acp requires glibc; the wrapper refuses musl)
 # with the toolkit at the canonical /opt/memoh/toolkit and the bridge served
@@ -121,6 +128,8 @@ RUN apt-get update \
     gstreamer1.0-plugins-ugly \
     gstreamer1.0-tools \
     iptables \
+    nodejs \
+    npm \
     tzdata \
     wget \
   && rm -rf /var/lib/apt/lists/* \
@@ -160,6 +169,7 @@ COPY --from=toolkit-assembly /assembly /opt/memoh/runtime
 COPY --from=server-builder /build/memoh-server /app/memoh-server
 COPY --from=server-builder /build/spec /app/spec
 COPY --from=server-builder /build/conf/providers /app/conf/providers
+COPY --from=personal-wechat-bridge-builder /bridge /app/packages/personal-wechat-bridge
 
 COPY docker/server-entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
@@ -185,8 +195,9 @@ WORKDIR /app
 # containerd runtime
 RUN apk add --no-cache containerd containerd-ctr
 
-# CNI plugins + iptables (for workspace container networking)
-RUN apk add --no-cache ca-certificates tzdata wget cni-plugins iptables \
+# CNI plugins + iptables (for workspace container networking), plus Node for
+# Memoh-managed personal WeChat sidecars.
+RUN apk add --no-cache ca-certificates tzdata wget cni-plugins iptables nodejs npm \
       gstreamer-tools gst-plugins-base gst-plugins-good gst-plugins-bad gst-plugins-ugly \
     && mkdir -p /opt/cni/bin \
     && (cp -a /usr/lib/cni/. /opt/cni/bin/ 2>/dev/null || true) \
@@ -227,6 +238,7 @@ COPY --from=toolkit-assembly /assembly /opt/memoh/runtime
 COPY --from=server-builder /build/memoh-server /app/memoh-server
 COPY --from=server-builder /build/spec /app/spec
 COPY --from=server-builder /build/conf/providers /app/conf/providers
+COPY --from=personal-wechat-bridge-builder /bridge /app/packages/personal-wechat-bridge
 
 # Entrypoint: start containerd, then server
 COPY docker/server-entrypoint.sh /entrypoint.sh

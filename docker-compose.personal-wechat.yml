@@ -1,0 +1,8 @@
+name: "memoh"
+
+services:
+  migrate:
+    image: ${MEMOH_SERVER_IMAGE:-memohai/server:personal-wechat}
+
+  server:
+    image: ${MEMOH_SERVER_IMAGE:-memohai/server:personal-wechat}
