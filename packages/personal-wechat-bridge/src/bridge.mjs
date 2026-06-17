@@ -94,6 +94,7 @@ export async function startBridge() {
   const cfg = loadConfig()
   fs.mkdirSync(cfg.dataDir, { recursive: true, mode: 0o700 })
   fs.mkdirSync(cfg.mediaDir, { recursive: true, mode: 0o700 })
+  process.chdir(cfg.dataDir)
 
   const bot = WechatyBuilder.build({
     name: cfg.sessionName,
