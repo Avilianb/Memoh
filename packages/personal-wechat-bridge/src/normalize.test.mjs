@@ -221,9 +221,8 @@ test('normalizeMessage maps native voice transcription to text', async () => {
   assert.equal(normalized.text, '总结一下这个语音')
   assert.equal(normalized.raw.nativeVoiceTranscription.provider, 'wechat_native')
   assert.equal(normalized.raw.nativeVoiceTranscription.source, 'VoiceTransText')
-  assert.equal(normalized.attachments[0].type, 'audio')
-  assert.equal(normalized.attachments[0].mime, 'audio/silk')
-  assert.equal(normalized.attachments[0].metadata.voiceLength, 3200)
+  assert.equal(normalized.raw.suppressedAudioAttachments, 1)
+  assert.deepEqual(normalized.attachments, [])
 })
 
 test('normalizeMessage falls back to WeChat official voice transcription', async () => {
@@ -259,6 +258,8 @@ test('normalizeMessage falls back to WeChat official voice transcription', async
   )
   assert.equal(normalized.type, 'Audio')
   assert.equal(normalized.text, '这是官方接口识别出的语音')
+  assert.equal(normalized.raw.suppressedAudioAttachments, 1)
+  assert.deepEqual(normalized.attachments, [])
   assert.equal(normalized.raw.officialVoiceTranscription.provider, 'wechat_official')
   assert.equal(normalized.raw.officialVoiceTranscription.source, 'test_stub')
   assert.equal(normalized.raw.officialVoiceTranscription.voiceId, 'voice-test')

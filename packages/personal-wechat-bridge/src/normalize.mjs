@@ -125,6 +125,10 @@ function attachmentKind(msgType, fileName, mime) {
   return 'file'
 }
 
+function isAudioAttachment(attachment) {
+  return clean(attachment?.type).toLowerCase() === 'audio' || clean(attachment?.mime).toLowerCase().startsWith('audio/')
+}
+
 function pickReplyCandidate(payload = {}) {
   const keys = ['quote', 'quoted', 'refer', 'referMsg', 'refMsg', 'reply', 'source', 'appmsg', 'appMsg']
   for (const key of keys) {
@@ -267,11 +271,12 @@ export async function normalizeMessage(message, context, cfg) {
     ? null
     : await extractWeChatOfficialVoiceTranscription(message, context, cfg, msgType, attachments)
   const voiceTranscript = nativeVoiceTranscript || (officialVoiceTranscript?.text ? officialVoiceTranscript : null)
+  const deliverAttachments = voiceTranscript?.text ? attachments.filter((attachment) => !isAudioAttachment(attachment)) : attachments
   const rawText = msgType === 'Text' ? message.text?.() || '' : voiceTranscript?.text || ''
   const { reply, text: replyText } = extractReply(message.payload || {}, rawText)
   const mention = detectMention(replyText, context, cfg)
   const isReplyToBot = Boolean(context.room && detectReplyToBot(reply, context, cfg, context.outboundStore))
-  if (!clean(mention.text) && attachments.length === 0 && !reply) return null
+  if (!clean(mention.text) && deliverAttachments.length === 0 && !reply) return null
   const room = context.room
   const conversation = room
     ? { id: clean(room.id || message.payload?.roomId), type: 'group', name: context.roomTopic }
@@ -294,9 +299,10 @@ export async function normalizeMessage(message, context, cfg) {
     },
     conversation,
     reply,
-    attachments,
+    attachments: deliverAttachments,
     raw: {
       ...rawPayload(message, cfg),
+      ...(deliverAttachments.length !== attachments.length ? { suppressedAudioAttachments: attachments.length - deliverAttachments.length } : {}),
       ...(nativeVoiceTranscript ? { nativeVoiceTranscription: { provider: nativeVoiceTranscript.provider, source: nativeVoiceTranscript.source } } : {}),
       ...(officialVoiceTranscript
         ? {
