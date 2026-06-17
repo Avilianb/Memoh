@@ -21,6 +21,55 @@ func TestParseConfigDefaults(t *testing.T) {
 	if !cfg.NativeVoiceTranscription {
 		t.Fatalf("native voice transcription should default to enabled: %#v", cfg)
 	}
+	if cfg.WechatOfficialVoiceTranscription {
+		t.Fatalf("official voice transcription should default to disabled: %#v", cfg)
+	}
+	if cfg.WechatOfficialVoiceLang != "zh_CN" {
+		t.Fatalf("official voice lang = %q", cfg.WechatOfficialVoiceLang)
+	}
+}
+
+func TestParseConfigOfficialVoiceRequiresCredentials(t *testing.T) {
+	t.Parallel()
+
+	_, err := parseConfig(map[string]any{"wechatOfficialVoiceTranscription": true})
+	if err == nil {
+		t.Fatal("expected missing official voice credentials error")
+	}
+}
+
+func TestParseConfigOfficialVoiceAcceptsStaticToken(t *testing.T) {
+	t.Parallel()
+
+	cfg, err := parseConfig(map[string]any{
+		"wechatOfficialVoiceTranscription": true,
+		"wechatOfficialAccessToken":        "token",
+		"wechatOfficialVoiceLang":          "en_US",
+	})
+	if err != nil {
+		t.Fatalf("parseConfig returned error: %v", err)
+	}
+	if !cfg.WechatOfficialVoiceTranscription {
+		t.Fatalf("official voice transcription should be enabled: %#v", cfg)
+	}
+	if cfg.WechatOfficialAccessToken != "token" {
+		t.Fatalf("official token not parsed: %#v", cfg)
+	}
+	if cfg.WechatOfficialVoiceLang != "en_US" {
+		t.Fatalf("official voice lang = %q", cfg.WechatOfficialVoiceLang)
+	}
+}
+
+func TestDescriptorMarksOfficialVoiceSecrets(t *testing.T) {
+	t.Parallel()
+
+	desc := (&Adapter{}).Descriptor()
+	if desc.ConfigSchema.Fields["wechatOfficialAppSecret"].Type != "secret" {
+		t.Fatalf("wechatOfficialAppSecret should be secret: %#v", desc.ConfigSchema.Fields["wechatOfficialAppSecret"])
+	}
+	if desc.ConfigSchema.Fields["wechatOfficialAccessToken"].Type != "secret" {
+		t.Fatalf("wechatOfficialAccessToken should be secret: %#v", desc.ConfigSchema.Fields["wechatOfficialAccessToken"])
+	}
 }
 
 func TestNormalizeTarget(t *testing.T) {

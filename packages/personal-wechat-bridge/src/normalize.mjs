@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { extractNativeVoiceTranscription } from './voice-transcription.mjs'
+import { extractWeChatOfficialVoiceTranscription } from './wechat-official-voice.mjs'
 
 const MIME_BY_EXT = {
   '.amr': 'audio/amr',
@@ -260,12 +261,16 @@ export async function extractAttachments(message, cfg, msgType) {
 
 export async function normalizeMessage(message, context, cfg) {
   const msgType = typeName(message, context.bot)
-  const voiceTranscript = await extractNativeVoiceTranscription(message, context, cfg, msgType)
+  const nativeVoiceTranscript = await extractNativeVoiceTranscription(message, context, cfg, msgType)
+  const attachments = await extractAttachments(message, cfg, msgType)
+  const officialVoiceTranscript = nativeVoiceTranscript
+    ? null
+    : await extractWeChatOfficialVoiceTranscription(message, context, cfg, msgType, attachments)
+  const voiceTranscript = nativeVoiceTranscript || (officialVoiceTranscript?.text ? officialVoiceTranscript : null)
   const rawText = msgType === 'Text' ? message.text?.() || '' : voiceTranscript?.text || ''
   const { reply, text: replyText } = extractReply(message.payload || {}, rawText)
   const mention = detectMention(replyText, context, cfg)
   const isReplyToBot = Boolean(context.room && detectReplyToBot(reply, context, cfg, context.outboundStore))
-  const attachments = await extractAttachments(message, cfg, msgType)
   if (!clean(mention.text) && attachments.length === 0 && !reply) return null
   const room = context.room
   const conversation = room
@@ -292,7 +297,17 @@ export async function normalizeMessage(message, context, cfg) {
     attachments,
     raw: {
       ...rawPayload(message, cfg),
-      ...(voiceTranscript ? { nativeVoiceTranscription: { provider: voiceTranscript.provider, source: voiceTranscript.source } } : {}),
+      ...(nativeVoiceTranscript ? { nativeVoiceTranscription: { provider: nativeVoiceTranscript.provider, source: nativeVoiceTranscript.source } } : {}),
+      ...(officialVoiceTranscript
+        ? {
+            officialVoiceTranscription: {
+              provider: officialVoiceTranscript.provider,
+              source: officialVoiceTranscript.source,
+              ...(officialVoiceTranscript.voiceId ? { voiceId: officialVoiceTranscript.voiceId } : {}),
+              ...(officialVoiceTranscript.error ? { error: officialVoiceTranscript.error } : {}),
+            },
+          }
+        : {}),
     },
   }
 }

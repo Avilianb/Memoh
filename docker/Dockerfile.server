@@ -123,6 +123,7 @@ RUN apt-get update \
     ca-certificates \
     containerd \
     containernetworking-plugins \
+    ffmpeg \
     gstreamer1.0-plugins-bad \
     gstreamer1.0-plugins-base \
     gstreamer1.0-plugins-good \
@@ -199,6 +200,7 @@ RUN apk add --no-cache containerd containerd-ctr
 # CNI plugins + iptables (for workspace container networking), plus Node for
 # Memoh-managed personal WeChat sidecars.
 RUN apk add --no-cache ca-certificates tzdata wget cni-plugins iptables nodejs npm \
+      ffmpeg \
       gstreamer-tools gst-plugins-base gst-plugins-good gst-plugins-bad gst-plugins-ugly \
     && mkdir -p /opt/cni/bin \
     && (cp -a /usr/lib/cni/. /opt/cni/bin/ 2>/dev/null || true) \

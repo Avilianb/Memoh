@@ -18,19 +18,26 @@ const (
 )
 
 type adapterConfig struct {
-	BridgeExecutable         string
-	BridgeScript             string
-	BridgeArgs               string
-	DataDir                  string
-	MediaDir                 string
-	SessionName              string
-	BotMentionName           string
-	AllowPrivate             bool
-	AllowGroups              bool
-	NativeVoiceTranscription bool
-	ContactWhitelist         []string
-	GroupWhitelist           []string
-	DiagnosticRawPayload     bool
+	BridgeExecutable                 string
+	BridgeScript                     string
+	BridgeArgs                       string
+	DataDir                          string
+	MediaDir                         string
+	SessionName                      string
+	BotMentionName                   string
+	AllowPrivate                     bool
+	AllowGroups                      bool
+	NativeVoiceTranscription         bool
+	WechatOfficialVoiceTranscription bool
+	WechatOfficialAppID              string
+	WechatOfficialAppSecret          string
+	WechatOfficialAccessToken        string
+	WechatOfficialVoiceLang          string
+	WechatOfficialVoiceAPIBase       string
+	WechatOfficialVoiceFfmpeg        string
+	ContactWhitelist                 []string
+	GroupWhitelist                   []string
+	DiagnosticRawPayload             bool
 }
 
 type userConfig struct {
@@ -45,20 +52,39 @@ func normalizeConfig(raw map[string]any) (map[string]any, error) {
 		return nil, err
 	}
 	out := map[string]any{
-		"bridgeExecutable":         cfg.BridgeExecutable,
-		"bridgeScript":             cfg.BridgeScript,
-		"dataDir":                  cfg.DataDir,
-		"mediaDir":                 cfg.MediaDir,
-		"sessionName":              cfg.SessionName,
-		"allowPrivate":             cfg.AllowPrivate,
-		"allowGroups":              cfg.AllowGroups,
-		"nativeVoiceTranscription": cfg.NativeVoiceTranscription,
+		"bridgeExecutable":                 cfg.BridgeExecutable,
+		"bridgeScript":                     cfg.BridgeScript,
+		"dataDir":                          cfg.DataDir,
+		"mediaDir":                         cfg.MediaDir,
+		"sessionName":                      cfg.SessionName,
+		"allowPrivate":                     cfg.AllowPrivate,
+		"allowGroups":                      cfg.AllowGroups,
+		"nativeVoiceTranscription":         cfg.NativeVoiceTranscription,
+		"wechatOfficialVoiceTranscription": cfg.WechatOfficialVoiceTranscription,
 	}
 	if cfg.BridgeArgs != "" {
 		out["bridgeArgs"] = cfg.BridgeArgs
 	}
 	if cfg.BotMentionName != "" {
 		out["botMentionName"] = cfg.BotMentionName
+	}
+	if cfg.WechatOfficialAppID != "" {
+		out["wechatOfficialAppId"] = cfg.WechatOfficialAppID
+	}
+	if cfg.WechatOfficialAppSecret != "" {
+		out["wechatOfficialAppSecret"] = cfg.WechatOfficialAppSecret
+	}
+	if cfg.WechatOfficialAccessToken != "" {
+		out["wechatOfficialAccessToken"] = cfg.WechatOfficialAccessToken
+	}
+	if cfg.WechatOfficialVoiceLang != "" {
+		out["wechatOfficialVoiceLang"] = cfg.WechatOfficialVoiceLang
+	}
+	if cfg.WechatOfficialVoiceAPIBase != "" {
+		out["wechatOfficialVoiceApiBase"] = cfg.WechatOfficialVoiceAPIBase
+	}
+	if cfg.WechatOfficialVoiceFfmpeg != "" {
+		out["wechatOfficialVoiceFfmpeg"] = cfg.WechatOfficialVoiceFfmpeg
 	}
 	if len(cfg.ContactWhitelist) > 0 {
 		out["contactWhitelist"] = strings.Join(cfg.ContactWhitelist, ",")
@@ -74,16 +100,23 @@ func normalizeConfig(raw map[string]any) (map[string]any, error) {
 
 func parseConfig(raw map[string]any) (adapterConfig, error) {
 	cfg := adapterConfig{
-		BridgeExecutable:         strings.TrimSpace(channel.ReadString(raw, "bridgeExecutable", "bridge_executable")),
-		BridgeScript:             strings.TrimSpace(channel.ReadString(raw, "bridgeScript", "bridge_script")),
-		BridgeArgs:               strings.TrimSpace(channel.ReadString(raw, "bridgeArgs", "bridge_args")),
-		DataDir:                  strings.TrimSpace(channel.ReadString(raw, "dataDir", "data_dir")),
-		MediaDir:                 strings.TrimSpace(channel.ReadString(raw, "mediaDir", "media_dir")),
-		SessionName:              strings.TrimSpace(channel.ReadString(raw, "sessionName", "session_name")),
-		BotMentionName:           strings.TrimSpace(channel.ReadString(raw, "botMentionName", "bot_mention_name")),
-		AllowPrivate:             true,
-		AllowGroups:              true,
-		NativeVoiceTranscription: true,
+		BridgeExecutable:                 strings.TrimSpace(channel.ReadString(raw, "bridgeExecutable", "bridge_executable")),
+		BridgeScript:                     strings.TrimSpace(channel.ReadString(raw, "bridgeScript", "bridge_script")),
+		BridgeArgs:                       strings.TrimSpace(channel.ReadString(raw, "bridgeArgs", "bridge_args")),
+		DataDir:                          strings.TrimSpace(channel.ReadString(raw, "dataDir", "data_dir")),
+		MediaDir:                         strings.TrimSpace(channel.ReadString(raw, "mediaDir", "media_dir")),
+		SessionName:                      strings.TrimSpace(channel.ReadString(raw, "sessionName", "session_name")),
+		BotMentionName:                   strings.TrimSpace(channel.ReadString(raw, "botMentionName", "bot_mention_name")),
+		WechatOfficialAppID:              strings.TrimSpace(channel.ReadString(raw, "wechatOfficialAppId", "wechat_official_app_id")),
+		WechatOfficialAppSecret:          strings.TrimSpace(channel.ReadString(raw, "wechatOfficialAppSecret", "wechat_official_app_secret")),
+		WechatOfficialAccessToken:        strings.TrimSpace(channel.ReadString(raw, "wechatOfficialAccessToken", "wechat_official_access_token")),
+		WechatOfficialVoiceLang:          strings.TrimSpace(channel.ReadString(raw, "wechatOfficialVoiceLang", "wechat_official_voice_lang")),
+		WechatOfficialVoiceAPIBase:       strings.TrimSpace(channel.ReadString(raw, "wechatOfficialVoiceApiBase", "wechat_official_voice_api_base")),
+		WechatOfficialVoiceFfmpeg:        strings.TrimSpace(channel.ReadString(raw, "wechatOfficialVoiceFfmpeg", "wechat_official_voice_ffmpeg")),
+		AllowPrivate:                     true,
+		AllowGroups:                      true,
+		NativeVoiceTranscription:         true,
+		WechatOfficialVoiceTranscription: false,
 	}
 	if cfg.BridgeExecutable == "" {
 		cfg.BridgeExecutable = defaultBridgeExecutable
@@ -111,6 +144,26 @@ func parseConfig(raw map[string]any) (adapterConfig, error) {
 	}
 	if v, ok := readBool(raw, "nativeVoiceTranscription", "native_voice_transcription"); ok {
 		cfg.NativeVoiceTranscription = v
+	}
+	if v, ok := readBool(raw, "wechatOfficialVoiceTranscription", "wechat_official_voice_transcription"); ok {
+		cfg.WechatOfficialVoiceTranscription = v
+	}
+	if cfg.WechatOfficialVoiceLang == "" {
+		cfg.WechatOfficialVoiceLang = "zh_CN"
+	}
+	if cfg.WechatOfficialVoiceLang != "zh_CN" && cfg.WechatOfficialVoiceLang != "en_US" {
+		return adapterConfig{}, errors.New("personal_wechat wechatOfficialVoiceLang must be zh_CN or en_US")
+	}
+	if cfg.WechatOfficialVoiceAPIBase == "" {
+		cfg.WechatOfficialVoiceAPIBase = "https://api.weixin.qq.com"
+	}
+	if cfg.WechatOfficialVoiceFfmpeg == "" {
+		cfg.WechatOfficialVoiceFfmpeg = "ffmpeg"
+	}
+	if cfg.WechatOfficialVoiceTranscription &&
+		cfg.WechatOfficialAccessToken == "" &&
+		(cfg.WechatOfficialAppID == "" || cfg.WechatOfficialAppSecret == "") {
+		return adapterConfig{}, errors.New("personal_wechat official voice transcription requires wechatOfficialAccessToken or wechatOfficialAppId/wechatOfficialAppSecret")
 	}
 	cfg.ContactWhitelist = splitCSV(channel.ReadString(raw, "contactWhitelist", "contact_whitelist"))
 	cfg.GroupWhitelist = splitCSV(channel.ReadString(raw, "groupWhitelist", "group_whitelist"))

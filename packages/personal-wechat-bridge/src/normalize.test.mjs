@@ -225,3 +225,41 @@ test('normalizeMessage maps native voice transcription to text', async () => {
   assert.equal(normalized.attachments[0].mime, 'audio/silk')
   assert.equal(normalized.attachments[0].metadata.voiceLength, 3200)
 })
+
+test('normalizeMessage falls back to WeChat official voice transcription', async () => {
+  const message = {
+    id: 'msg-official-voice',
+    payload: {
+      talkerId: 'wxid-a',
+      VoiceLength: 3200,
+    },
+    type: () => 3,
+    toFileBox: async () => ({
+      name: 'message-msg-official-voice-audio.mp3',
+      mimeType: 'audio/mpeg',
+      metadata: { voiceLength: 3200 },
+      toFile: async (filePath) => {
+        await import('node:fs/promises').then((fs) => fs.writeFile(filePath, 'mp3-data'))
+      },
+    }),
+  }
+  const talker = { id: 'wxid-a', self: () => false }
+  const normalized = await normalizeMessage(
+    message,
+    { bot: { Message: { Type: { 3: 'Audio' } } }, talker, talkerName: 'Alice', talkerAlias: 'A' },
+    {
+      mediaDir: await import('node:os').then((os) => os.tmpdir()),
+      diagnosticRawPayload: true,
+      wechatOfficialVoiceTranscription: true,
+      wechatOfficialVoiceTranscriber: async ({ attachment }) => {
+        assert.equal(attachment.mime, 'audio/mpeg')
+        return { text: '这是官方接口识别出的语音', source: 'test_stub', voiceId: 'voice-test' }
+      },
+    },
+  )
+  assert.equal(normalized.type, 'Audio')
+  assert.equal(normalized.text, '这是官方接口识别出的语音')
+  assert.equal(normalized.raw.officialVoiceTranscription.provider, 'wechat_official')
+  assert.equal(normalized.raw.officialVoiceTranscription.source, 'test_stub')
+  assert.equal(normalized.raw.officialVoiceTranscription.voiceId, 'voice-test')
+})

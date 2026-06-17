@@ -68,19 +68,26 @@ func (*Adapter) Descriptor() channel.Descriptor {
 		ConfigSchema: channel.ConfigSchema{
 			Version: 1,
 			Fields: map[string]channel.FieldSchema{
-				"bridgeExecutable":         {Type: channel.FieldString, Title: "Bridge Executable", Description: "Executable used to launch the Wechaty sidecar. Default: node", Example: "node", Order: 0},
-				"bridgeScript":             {Type: channel.FieldString, Title: "Bridge Script", Description: "Path to packages/personal-wechat-bridge/bin/personal-wechat-bridge.mjs or a deployed equivalent.", Example: defaultBridgeScript, Order: 10},
-				"bridgeArgs":               {Type: channel.FieldString, Title: "Bridge Args", Description: "Optional whitespace-separated arguments passed after bridgeScript.", Order: 20},
-				"dataDir":                  {Type: channel.FieldString, Title: "Data Directory", Description: "Persistent directory for Wechaty memory card and diagnostics.", Example: defaultDataDir, Order: 30},
-				"mediaDir":                 {Type: channel.FieldString, Title: "Media Directory", Description: "Directory where inbound images/files are saved before Memoh ingests them.", Example: ".data/personal-wechat/media", Order: 40},
-				"sessionName":              {Type: channel.FieldString, Title: "Session Name", Description: "Wechaty memory-card name.", Example: defaultSessionName, Order: 50},
-				"botMentionName":           {Type: channel.FieldString, Title: "Bot Mention Name", Description: "Optional display mention that the sidecar can use for group filtering.", Order: 60},
-				"allowPrivate":             {Type: channel.FieldBool, Title: "Allow Private Chats", Order: 70},
-				"allowGroups":              {Type: channel.FieldBool, Title: "Allow Group Chats", Order: 80},
-				"nativeVoiceTranscription": {Type: channel.FieldBool, Title: "Native Voice Transcription", Description: "Use WeChat-provided voice-to-text fields when they are present on incoming voice messages. Does not call third-party STT.", Order: 90},
-				"contactWhitelist":         {Type: channel.FieldString, Title: "Contact Whitelist", Description: "Comma-separated contact IDs or names. Empty allows all when allowPrivate is true.", Order: 100},
-				"groupWhitelist":           {Type: channel.FieldString, Title: "Group Whitelist", Description: "Comma-separated room IDs or topics. Empty allows all when allowGroups is true.", Order: 110},
-				"diagnosticRawPayload":     {Type: channel.FieldBool, Title: "Diagnostic Raw Payload", Description: "Include sanitized raw Wechaty payload fields in controlled logs and inbound metadata.", Order: 120},
+				"bridgeExecutable":                 {Type: channel.FieldString, Title: "Bridge Executable", Description: "Executable used to launch the Wechaty sidecar. Default: node", Example: "node", Order: 0},
+				"bridgeScript":                     {Type: channel.FieldString, Title: "Bridge Script", Description: "Path to packages/personal-wechat-bridge/bin/personal-wechat-bridge.mjs or a deployed equivalent.", Example: defaultBridgeScript, Order: 10},
+				"bridgeArgs":                       {Type: channel.FieldString, Title: "Bridge Args", Description: "Optional whitespace-separated arguments passed after bridgeScript.", Order: 20},
+				"dataDir":                          {Type: channel.FieldString, Title: "Data Directory", Description: "Persistent directory for Wechaty memory card and diagnostics.", Example: defaultDataDir, Order: 30},
+				"mediaDir":                         {Type: channel.FieldString, Title: "Media Directory", Description: "Directory where inbound images/files are saved before Memoh ingests them.", Example: ".data/personal-wechat/media", Order: 40},
+				"sessionName":                      {Type: channel.FieldString, Title: "Session Name", Description: "Wechaty memory-card name.", Example: defaultSessionName, Order: 50},
+				"botMentionName":                   {Type: channel.FieldString, Title: "Bot Mention Name", Description: "Optional display mention that the sidecar can use for group filtering.", Order: 60},
+				"allowPrivate":                     {Type: channel.FieldBool, Title: "Allow Private Chats", Order: 70},
+				"allowGroups":                      {Type: channel.FieldBool, Title: "Allow Group Chats", Order: 80},
+				"nativeVoiceTranscription":         {Type: channel.FieldBool, Title: "Native Voice Transcription", Description: "Use WeChat-provided voice-to-text fields when they are present on incoming voice messages. Does not call third-party STT.", Order: 90},
+				"wechatOfficialVoiceTranscription": {Type: channel.FieldBool, Title: "WeChat Official Voice STT", Description: "When native transcript fields are absent, upload saved voice audio to WeChat's official intelligent voice-to-text API.", Order: 100},
+				"wechatOfficialAppId":              {Type: channel.FieldString, Title: "WeChat Official App ID", Description: "Service Account, Mini Program, Open Platform app, or mobile app AppID used to fetch access_token.", Order: 110},
+				"wechatOfficialAppSecret":          {Type: channel.FieldSecret, Title: "WeChat Official App Secret", Description: "Secret used with AppID to fetch access_token. Leave empty when providing wechatOfficialAccessToken.", Order: 120},
+				"wechatOfficialAccessToken":        {Type: channel.FieldSecret, Title: "WeChat Official Access Token", Description: "Optional pre-issued access_token. AppID/AppSecret are preferred for automatic refresh.", Order: 130},
+				"wechatOfficialVoiceLang":          {Type: channel.FieldEnum, Title: "WeChat Official Voice Language", Enum: []string{"zh_CN", "en_US"}, Example: "zh_CN", Order: 140},
+				"wechatOfficialVoiceApiBase":       {Type: channel.FieldString, Title: "WeChat Official API Base", Example: "https://api.weixin.qq.com", Order: 150},
+				"wechatOfficialVoiceFfmpeg":        {Type: channel.FieldString, Title: "FFmpeg Executable", Description: "Executable used to convert WeChat voice attachments to mp3/16k/mono for the official API.", Example: "ffmpeg", Order: 160},
+				"contactWhitelist":                 {Type: channel.FieldString, Title: "Contact Whitelist", Description: "Comma-separated contact IDs or names. Empty allows all when allowPrivate is true.", Order: 170},
+				"groupWhitelist":                   {Type: channel.FieldString, Title: "Group Whitelist", Description: "Comma-separated room IDs or topics. Empty allows all when allowGroups is true.", Order: 180},
+				"diagnosticRawPayload":             {Type: channel.FieldBool, Title: "Diagnostic Raw Payload", Description: "Include sanitized raw Wechaty payload fields in controlled logs and inbound metadata.", Order: 190},
 			},
 		},
 		UserConfigSchema: channel.ConfigSchema{
@@ -134,6 +141,7 @@ func (a *Adapter) Connect(ctx context.Context, cfg channel.ChannelConfig, handle
 	if err := os.MkdirAll(parsed.MediaDir, 0o700); err != nil {
 		return nil, fmt.Errorf("personal_wechat create media dir: %w", err)
 	}
+	channel.SetIMErrorSecrets("personal_wechat:"+cfg.ID, parsed.WechatOfficialAppSecret, parsed.WechatOfficialAccessToken)
 	client, err := a.startBridge(ctx, cfg, parsed, handler)
 	if err != nil {
 		return nil, err
@@ -160,18 +168,25 @@ func (a *Adapter) startBridge(ctx context.Context, cfg channel.ChannelConfig, pa
 	cmd := exec.CommandContext(bridgeCtx, parsed.BridgeExecutable, args...) //nolint:gosec // executable is explicit channel config.
 	cmd.Dir = repoRootForBridge(parsed.BridgeScript)
 	configPayload, err := json.Marshal(map[string]any{
-		"configId":                 cfg.ID,
-		"botId":                    cfg.BotID,
-		"dataDir":                  parsed.DataDir,
-		"mediaDir":                 parsed.MediaDir,
-		"sessionName":              parsed.SessionName,
-		"botMentionName":           parsed.BotMentionName,
-		"allowPrivate":             parsed.AllowPrivate,
-		"allowGroups":              parsed.AllowGroups,
-		"nativeVoiceTranscription": parsed.NativeVoiceTranscription,
-		"contactWhitelist":         parsed.ContactWhitelist,
-		"groupWhitelist":           parsed.GroupWhitelist,
-		"diagnosticRawPayload":     parsed.DiagnosticRawPayload,
+		"configId":                         cfg.ID,
+		"botId":                            cfg.BotID,
+		"dataDir":                          parsed.DataDir,
+		"mediaDir":                         parsed.MediaDir,
+		"sessionName":                      parsed.SessionName,
+		"botMentionName":                   parsed.BotMentionName,
+		"allowPrivate":                     parsed.AllowPrivate,
+		"allowGroups":                      parsed.AllowGroups,
+		"nativeVoiceTranscription":         parsed.NativeVoiceTranscription,
+		"wechatOfficialVoiceTranscription": parsed.WechatOfficialVoiceTranscription,
+		"wechatOfficialAppId":              parsed.WechatOfficialAppID,
+		"wechatOfficialAppSecret":          parsed.WechatOfficialAppSecret,
+		"wechatOfficialAccessToken":        parsed.WechatOfficialAccessToken,
+		"wechatOfficialVoiceLang":          parsed.WechatOfficialVoiceLang,
+		"wechatOfficialVoiceApiBase":       parsed.WechatOfficialVoiceAPIBase,
+		"wechatOfficialVoiceFfmpeg":        parsed.WechatOfficialVoiceFfmpeg,
+		"contactWhitelist":                 parsed.ContactWhitelist,
+		"groupWhitelist":                   parsed.GroupWhitelist,
+		"diagnosticRawPayload":             parsed.DiagnosticRawPayload,
 	})
 	if err != nil {
 		cancel()

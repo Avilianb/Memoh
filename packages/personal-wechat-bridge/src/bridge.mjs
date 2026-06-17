@@ -30,6 +30,10 @@ function loadConfig() {
   cfg.allowPrivate = cfg.allowPrivate !== false
   cfg.allowGroups = cfg.allowGroups !== false
   cfg.nativeVoiceTranscription = cfg.nativeVoiceTranscription !== false
+  cfg.wechatOfficialVoiceTranscription = cfg.wechatOfficialVoiceTranscription === true
+  cfg.wechatOfficialVoiceLang ||= 'zh_CN'
+  cfg.wechatOfficialVoiceApiBase ||= 'https://api.weixin.qq.com'
+  cfg.wechatOfficialVoiceFfmpeg ||= 'ffmpeg'
   cfg.contactWhitelist ||= []
   cfg.groupWhitelist ||= []
   return cfg
