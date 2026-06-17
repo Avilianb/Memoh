@@ -10,11 +10,12 @@ func TestBuildInboundMessageGroupQuoteImage(t *testing.T) {
 	t.Parallel()
 
 	inbound, ok := buildInboundMessage(bridgeMessage{
-		ID:          "msg-1",
-		Type:        "Text",
-		Text:        "@bot look",
-		Timestamp:   "2026-06-16T12:00:00Z",
-		IsMentioned: true,
+		ID:           "msg-1",
+		Type:         "Text",
+		Text:         "@bot look",
+		Timestamp:    "2026-06-16T12:00:00Z",
+		IsMentioned:  true,
+		IsReplyToBot: true,
 		Sender: bridgeIdentity{
 			ID:     "wxid_sender",
 			Name:   "Alice",
@@ -58,6 +59,9 @@ func TestBuildInboundMessageGroupQuoteImage(t *testing.T) {
 	}
 	if mentioned, _ := inbound.Metadata["is_mentioned"].(bool); !mentioned {
 		t.Fatalf("expected is_mentioned metadata, got %#v", inbound.Metadata)
+	}
+	if replyToBot, _ := inbound.Metadata["is_reply_to_bot"].(bool); !replyToBot {
+		t.Fatalf("expected is_reply_to_bot metadata, got %#v", inbound.Metadata)
 	}
 	if len(inbound.Message.Attachments) != 1 {
 		t.Fatalf("attachments = %d", len(inbound.Message.Attachments))

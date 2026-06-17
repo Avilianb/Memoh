@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { detectMention, extractReply, normalizeMessage } from './normalize.mjs'
+import { detectMention, detectReplyToBot, extractReply, normalizeMessage } from './normalize.mjs'
 
 test('extractReply uses explicit raw quote fields', () => {
   const { reply, text } = extractReply(
@@ -77,4 +77,50 @@ test('normalizeMessage marks group bot mention', async () => {
   )
   assert.equal(normalized.isMentioned, true)
   assert.equal(normalized.text, 'ping')
+})
+
+test('detectReplyToBot uses outbound ids and sender names', () => {
+  assert.equal(
+    detectReplyToBot({ messageId: 'bot-msg-1', sender: 'Alice' }, {}, {}, { has: (id) => id === 'bot-msg-1' }),
+    true,
+  )
+  assert.equal(
+    detectReplyToBot({ sender: "Netr0's Bot" }, { receiverName: "Netr0's Bot" }, {}, null),
+    true,
+  )
+  assert.equal(
+    detectReplyToBot({ sender: 'Alice' }, { receiverName: "Netr0's Bot" }, {}, null),
+    false,
+  )
+})
+
+test('normalizeMessage marks group quote of bot message as reply to bot', async () => {
+  const message = {
+    id: 'msg-quote-bot',
+    payload: {
+      roomId: 'room-1',
+      talkerId: 'wxid-a',
+      referMsg: { msgId: 'bot-msg-1', title: 'Alice', content: 'bot answer' },
+    },
+    type: () => 7,
+    text: () => 'follow up',
+  }
+  const room = { id: 'room-1' }
+  const talker = { id: 'wxid-a', self: () => false }
+  const normalized = await normalizeMessage(
+    message,
+    {
+      bot: { Message: { Type: { 7: 'Text' } } },
+      room,
+      roomTopic: 'Room',
+      talker,
+      talkerName: 'Alice',
+      talkerAlias: 'A',
+      outboundStore: { has: (id) => id === 'bot-msg-1' },
+    },
+    { botMentionName: "Netr0's Bot", mediaDir: await import('node:os').then((os) => os.tmpdir()) },
+  )
+  assert.equal(normalized.isMentioned, false)
+  assert.equal(normalized.isReplyToBot, true)
+  assert.equal(normalized.reply.messageId, 'bot-msg-1')
 })

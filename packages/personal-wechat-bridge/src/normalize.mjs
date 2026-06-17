@@ -34,6 +34,22 @@ function mentionNameCandidates(context, cfg) {
   return out
 }
 
+function identityCandidates(context, cfg) {
+  return [
+    cfg?.botMentionName,
+    cfg?.sessionName,
+    context?.receiverName,
+    context?.receiver?.id,
+  ]
+}
+
+function canonicalIdentity(value) {
+  return clean(value)
+    .replace(/^@+/, '')
+    .replace(/\s+/gu, ' ')
+    .toLowerCase()
+}
+
 export function detectMention(text, context = {}, cfg = {}) {
   const value = String(text || '')
   for (const name of mentionNameCandidates(context, cfg)) {
@@ -104,6 +120,14 @@ export function extractReply(payload, text) {
   return extractTextFallbackQuote(text) || { reply: null, text }
 }
 
+export function detectReplyToBot(reply, context = {}, cfg = {}, outboundStore = null) {
+  if (!reply) return false
+  if (reply.messageId && outboundStore?.has?.(reply.messageId)) return true
+  const sender = canonicalIdentity(reply.sender)
+  if (!sender) return false
+  return identityCandidates(context, cfg).some((candidate) => canonicalIdentity(candidate) === sender)
+}
+
 function rawPayload(message, cfg) {
   if (!cfg.diagnosticRawPayload) return undefined
   const payload = message.payload || {}
@@ -172,6 +196,7 @@ export async function normalizeMessage(message, context, cfg) {
   const rawText = msgType === 'Text' ? message.text?.() || '' : ''
   const { reply, text: replyText } = extractReply(message.payload || {}, rawText)
   const mention = detectMention(replyText, context, cfg)
+  const isReplyToBot = Boolean(context.room && detectReplyToBot(reply, context, cfg, context.outboundStore))
   const attachments = await extractAttachments(message, cfg, msgType)
   if (!clean(mention.text) && attachments.length === 0 && !reply) return null
   const room = context.room
@@ -185,6 +210,7 @@ export async function normalizeMessage(message, context, cfg) {
     timestamp: new Date().toISOString(),
     replyTarget: room ? `room:${conversation.id}` : `contact:${clean(context.talker?.id || message.payload?.talkerId)}`,
     isMentioned: Boolean(room && mention.isMentioned),
+    isReplyToBot,
     sender: {
       id: clean(context.talker?.id || message.payload?.talkerId),
       name: context.talkerName,

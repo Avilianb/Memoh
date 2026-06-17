@@ -12,7 +12,7 @@
 Inbound sidecar event:
 
 ```json
-{"type":"message","message":{"id":"...","text":"...","sender":{"id":"..."},"conversation":{"id":"...","type":"group"},"replyTarget":"room:...","reply":{"messageId":"...","sender":"...","preview":"..."},"attachments":[{"type":"image","path":"/data/media/a.jpg","mime":"image/jpeg"}]}}
+{"type":"message","message":{"id":"...","text":"...","sender":{"id":"..."},"conversation":{"id":"...","type":"group"},"replyTarget":"room:...","isMentioned":false,"isReplyToBot":true,"reply":{"messageId":"...","sender":"...","preview":"..."},"attachments":[{"type":"image","path":"/data/media/a.jpg","mime":"image/jpeg"}]}}
 ```
 
 Outbound Go command:
@@ -28,6 +28,7 @@ Outbound Go command:
 - `dataDir`: persistent Wechaty session and diagnostics directory
 - `mediaDir`: inbound media directory
 - `sessionName`: Wechaty memory-card name
+- `botMentionName`: bot display name used for group mention and quote-sender fallback detection
 - `allowPrivate`, `allowGroups`: coarse inbound switches
 - `contactWhitelist`, `groupWhitelist`: comma-separated IDs or display names; empty means allow all for the enabled chat type
 - `diagnosticRawPayload`: includes sanitized raw payload fields for quote/media verification
@@ -37,6 +38,8 @@ Outbound Go command:
 Sender identity is mapped from Wechaty `talker()` and room context into `channel.Identity` and `channel.Conversation`.
 
 Quote support is evidence-based. The sidecar first checks raw payload fields such as `quote`, `referMsg`, `refMsg`, `reply`, `source`, and `appmsg`. If they are absent, it parses WeChat's visible quote text form as a fallback and marks `reply.raw.source = "text_fallback"`. If neither raw fields nor text fallback are present, `Message.Reply` is omitted.
+
+Group quote triggering uses Memoh's native `is_reply_to_bot` directed-message path. The sidecar keeps a bounded, persisted set of recently observed outbound bot message IDs under `dataDir` and marks inbound quote messages as `isReplyToBot` when the quoted `messageId` is in that set. If WeChat does not expose a stable quoted message ID, it falls back to matching the quoted sender against `botMentionName`, `sessionName`, the receiver name, or the receiver ID.
 
 Images are received through Wechaty `message.toFileBox()`, saved under `mediaDir`, and passed to Memoh as `Attachment{Type:image, Path, Mime, Name, Size}`. Outbound attachments are evaluated through the same sidecar protocol, but real WeChat file sending still depends on the account and `wechaty-puppet-wechat4u` filebox behavior.
 
@@ -53,6 +56,7 @@ For real WeChat verification, enable `diagnosticRawPayload`, start the channel, 
 
 1. A private text message and a group mention.
 2. A WeChat quote/reply message mentioning the bot.
-3. An image.
+3. A WeChat quote/reply message that quotes a recent bot message without an @ mention.
+4. An image.
 
 Check logs for `message.raw` keys and media files in `mediaDir`. Report quote as verified only when raw quote fields are present; otherwise report text-fallback only.

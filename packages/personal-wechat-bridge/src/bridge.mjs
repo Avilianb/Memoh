@@ -7,6 +7,7 @@ import qrcodeTerminal from 'qrcode-terminal'
 import { FileBox } from 'file-box'
 import { collectContext } from './context.mjs'
 import { normalizeMessage } from './normalize.mjs'
+import { RecentOutboundStore } from './outbound-store.mjs'
 
 function emit(event) {
   process.stdout.write(`${JSON.stringify(event)}\n`)
@@ -20,7 +21,11 @@ function loadConfig() {
   const raw = process.env.MEMOH_PERSONAL_WECHAT_CONFIG || '{}'
   const cfg = JSON.parse(raw)
   cfg.dataDir ||= '.data/personal-wechat'
+  cfg.dataDir = path.resolve(cfg.dataDir)
   cfg.mediaDir ||= path.join(cfg.dataDir, 'media')
+  cfg.mediaDir = path.resolve(cfg.mediaDir)
+  cfg.outboundStorePath ||= path.join(cfg.dataDir, 'outbound-message-ids.json')
+  cfg.outboundStorePath = path.resolve(cfg.outboundStorePath)
   cfg.sessionName ||= 'MemohPersonalWeChat'
   cfg.allowPrivate = cfg.allowPrivate !== false
   cfg.allowGroups = cfg.allowGroups !== false
@@ -58,19 +63,30 @@ async function resolveTarget(bot, target) {
   return contact
 }
 
-async function sendCommand(bot, command) {
+function rememberSentMessage(outboundStore, sent, metadata = {}) {
+  if (!sent) return
+  if (Array.isArray(sent)) {
+    for (const item of sent) rememberSentMessage(outboundStore, item, metadata)
+    return
+  }
+  outboundStore.addMessage(sent, metadata)
+}
+
+async function sendCommand(bot, command, outboundStore) {
   const target = await resolveTarget(bot, command.target)
   const text = String(command.message?.text || '').trim()
   if (text) {
-    await target.say(text)
+    const sent = await target.say(text)
+    rememberSentMessage(outboundStore, sent, { target: command.target, source: 'say_text' })
   }
   for (const attachment of command.message?.attachments || []) {
     if (!attachment.path) continue
-    await target.say(FileBox.fromFile(attachment.path, attachment.name || path.basename(attachment.path)))
+    const sent = await target.say(FileBox.fromFile(attachment.path, attachment.name || path.basename(attachment.path)))
+    rememberSentMessage(outboundStore, sent, { target: command.target, source: 'say_attachment' })
   }
 }
 
-function attachCommandReader(bot) {
+function attachCommandReader(bot, outboundStore) {
   const rl = readline.createInterface({ input: process.stdin, crlfDelay: Infinity })
   rl.on('line', async (line) => {
     const trimmed = line.trim()
@@ -82,7 +98,7 @@ function attachCommandReader(bot) {
         process.exit(0)
       }
       if (command.type === 'send') {
-        await sendCommand(bot, command)
+        await sendCommand(bot, command, outboundStore)
       }
     } catch (error) {
       emit({ type: 'error', error: error?.stack || String(error) })
@@ -94,6 +110,7 @@ export async function startBridge() {
   const cfg = loadConfig()
   fs.mkdirSync(cfg.dataDir, { recursive: true, mode: 0o700 })
   fs.mkdirSync(cfg.mediaDir, { recursive: true, mode: 0o700 })
+  const outboundStore = new RecentOutboundStore({ filePath: cfg.outboundStorePath })
   process.chdir(cfg.dataDir)
 
   const bot = WechatyBuilder.build({
@@ -117,15 +134,19 @@ export async function startBridge() {
   bot.on('message', async (message) => {
     try {
       const context = await collectContext(message, bot)
+      if (context.talker?.self?.()) {
+        outboundStore.addMessage(message, { source: 'self_event' })
+        return
+      }
       if (!(await shouldAccept(message, context, cfg))) return
-      const normalized = await normalizeMessage(message, context, cfg)
+      const normalized = await normalizeMessage(message, { ...context, outboundStore }, cfg)
       if (normalized) emit({ type: 'message', message: normalized })
     } catch (error) {
       emit({ type: 'error', error: error?.stack || String(error) })
     }
   })
 
-  attachCommandReader(bot)
+  attachCommandReader(bot, outboundStore)
   await bot.start()
   emit({ type: 'status', status: 'started' })
 }
