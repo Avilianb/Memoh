@@ -87,3 +87,49 @@ func TestBuildInboundMessageRejectsEmptyContent(t *testing.T) {
 		t.Fatal("expected empty message to be ignored")
 	}
 }
+
+func TestBuildInboundMessageOfficeFileAttachment(t *testing.T) {
+	t.Parallel()
+
+	inbound, ok := buildInboundMessage(bridgeMessage{
+		ID:   "msg-file",
+		Type: "Attachment",
+		Sender: bridgeIdentity{
+			ID:   "wxid_sender",
+			Name: "Alice",
+		},
+		Conversation: bridgeConversation{
+			ID:   "wxid_sender",
+			Type: "private",
+		},
+		Attachments: []bridgeAttachment{
+			{
+				Type: "file",
+				Path: "/tmp/report.xlsx",
+				Mime: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+				Name: "report.xlsx",
+				Size: 512,
+				Metadata: map[string]any{
+					"extension":  ".xlsx",
+					"wechatType": "Attachment",
+				},
+			},
+		},
+	})
+	if !ok {
+		t.Fatal("expected inbound message")
+	}
+	if len(inbound.Message.Attachments) != 1 {
+		t.Fatalf("attachments = %d", len(inbound.Message.Attachments))
+	}
+	att := inbound.Message.Attachments[0]
+	if att.Type != channel.AttachmentFile {
+		t.Fatalf("attachment type = %q, want file", att.Type)
+	}
+	if att.Name != "report.xlsx" || att.Path != "/tmp/report.xlsx" || att.Mime != "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" {
+		t.Fatalf("attachment = %#v", att)
+	}
+	if att.Metadata["extension"] != ".xlsx" || att.Metadata["wechatType"] != "Attachment" {
+		t.Fatalf("attachment metadata = %#v", att.Metadata)
+	}
+}

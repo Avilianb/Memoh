@@ -1,6 +1,29 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+const MIME_BY_EXT = {
+  '.csv': 'text/csv',
+  '.doc': 'application/msword',
+  '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  '.gif': 'image/gif',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.json': 'application/json',
+  '.md': 'text/markdown',
+  '.pdf': 'application/pdf',
+  '.png': 'image/png',
+  '.ppt': 'application/vnd.ms-powerpoint',
+  '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  '.rar': 'application/vnd.rar',
+  '.rtf': 'application/rtf',
+  '.tar': 'application/x-tar',
+  '.txt': 'text/plain',
+  '.webp': 'image/webp',
+  '.xls': 'application/vnd.ms-excel',
+  '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  '.zip': 'application/zip',
+}
+
 const TYPE_NAMES = {
   2: 'Attachment',
   3: 'Audio',
@@ -74,6 +97,28 @@ function safeName(value, fallback) {
 function typeName(message, bot) {
   const numeric = message.type?.()
   return bot?.Message?.Type?.[numeric] || TYPE_NAMES[numeric] || String(numeric || 'Unknown')
+}
+
+function extensionFromName(name) {
+  return path.extname(clean(name)).toLowerCase()
+}
+
+function inferMime(name, provided = '') {
+  const mime = clean(provided)
+  if (mime && mime !== 'application/octet-stream') return mime
+  return MIME_BY_EXT[extensionFromName(name)] || mime || 'application/octet-stream'
+}
+
+function attachmentKind(msgType, fileName, mime) {
+  const normalizedType = clean(msgType).toLowerCase()
+  const normalizedMime = clean(mime).toLowerCase()
+  const ext = extensionFromName(fileName)
+  if (normalizedType === 'image' || normalizedMime.startsWith('image/')) return normalizedMime === 'image/gif' ? 'gif' : 'image'
+  if (normalizedType === 'emoticon') return 'gif'
+  if (normalizedType === 'audio' || normalizedMime.startsWith('audio/')) return 'audio'
+  if (normalizedType === 'video' || normalizedMime.startsWith('video/')) return 'video'
+  if (ext === '.gif') return 'gif'
+  return 'file'
 }
 
 function pickReplyCandidate(payload = {}) {
@@ -153,9 +198,12 @@ function rawPayload(message, cfg) {
   return Object.fromEntries(allowed.filter((key) => payload[key] !== undefined).map((key) => [key, payload[key]]))
 }
 
-async function saveFileBox(fileBox, cfg, messageId, kind) {
+async function saveFileBox(fileBox, cfg, messageId, msgType) {
   if (!fileBox) return null
-  const name = safeName(fileBox.name, `${messageId}-${kind || 'attachment'}`)
+  const name = safeName(fileBox.name, `${messageId}-attachment`)
+  const mime = inferMime(name, fileBox.mimeType || fileBox.mediaType)
+  const kind = attachmentKind(msgType, name, mime)
+  const extension = extensionFromName(name)
   const dir = path.resolve(cfg.mediaDir, new Date().toISOString().slice(0, 10))
   fs.mkdirSync(dir, { recursive: true, mode: 0o700 })
   const filePath = path.join(dir, `${messageId}-${name}`)
@@ -166,7 +214,11 @@ async function saveFileBox(fileBox, cfg, messageId, kind) {
     path: filePath,
     name,
     size: stat.size,
-    mime: clean(fileBox.mimeType || fileBox.mediaType),
+    mime,
+    metadata: {
+      extension,
+      wechatType: msgType,
+    },
   }
 }
 
@@ -175,8 +227,7 @@ export async function extractAttachments(message, cfg, msgType) {
   if (typeof message.toFileBox !== 'function') return []
   try {
     const fileBox = await message.toFileBox()
-    const kind = msgType === 'Image' ? 'image' : msgType === 'Emoticon' ? 'gif' : msgType.toLowerCase()
-    const att = await saveFileBox(fileBox, cfg, message.id, kind)
+    const att = await saveFileBox(fileBox, cfg, message.id, msgType)
     return att ? [{ ...att, variant: 'wechaty_filebox' }] : []
   } catch (error) {
     return [

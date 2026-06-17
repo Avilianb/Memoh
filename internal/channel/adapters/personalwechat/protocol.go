@@ -223,6 +223,7 @@ func mapAttachments(items []bridgeAttachment) []channel.Attachment {
 		if variant := strings.TrimSpace(item.Variant); variant != "" {
 			att.Metadata["variant"] = variant
 		}
+		att = channel.NormalizeInboundChannelAttachment(att)
 		if !att.HasReference() {
 			continue
 		}

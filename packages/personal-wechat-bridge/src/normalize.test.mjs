@@ -55,6 +55,55 @@ test('normalizeMessage maps sender, room, quote and image attachment', async () 
   assert.equal(normalized.attachments[0].mime, 'image/jpeg')
 })
 
+test('normalizeMessage saves Office files as file attachments with inferred mime', async () => {
+  const message = {
+    id: 'msg-file',
+    payload: { talkerId: 'wxid-a' },
+    type: () => 2,
+    toFileBox: async () => ({
+      name: 'report.xlsx',
+      mimeType: 'application/octet-stream',
+      toFile: async (filePath) => {
+        await import('node:fs/promises').then((fs) => fs.writeFile(filePath, 'xlsx-data'))
+      },
+    }),
+  }
+  const talker = { id: 'wxid-a', self: () => false }
+  const normalized = await normalizeMessage(
+    message,
+    { bot: { Message: { Type: { 2: 'Attachment' } } }, talker, talkerName: 'Alice', talkerAlias: 'A' },
+    { mediaDir: await import('node:os').then((os) => os.tmpdir()) },
+  )
+  assert.equal(normalized.attachments[0].type, 'file')
+  assert.equal(normalized.attachments[0].name, 'report.xlsx')
+  assert.equal(normalized.attachments[0].mime, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+  assert.equal(normalized.attachments[0].metadata.extension, '.xlsx')
+  assert.equal(normalized.attachments[0].metadata.wechatType, 'Attachment')
+})
+
+test('normalizeMessage saves Word files as file attachments with inferred mime', async () => {
+  const message = {
+    id: 'msg-word',
+    payload: { talkerId: 'wxid-a' },
+    type: () => 2,
+    toFileBox: async () => ({
+      name: 'notes.docx',
+      toFile: async (filePath) => {
+        await import('node:fs/promises').then((fs) => fs.writeFile(filePath, 'docx-data'))
+      },
+    }),
+  }
+  const talker = { id: 'wxid-a', self: () => false }
+  const normalized = await normalizeMessage(
+    message,
+    { bot: { Message: { Type: { 2: 'Attachment' } } }, talker, talkerName: 'Alice', talkerAlias: 'A' },
+    { mediaDir: await import('node:os').then((os) => os.tmpdir()) },
+  )
+  assert.equal(normalized.attachments[0].type, 'file')
+  assert.equal(normalized.attachments[0].mime, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+  assert.equal(normalized.attachments[0].metadata.extension, '.docx')
+})
+
 test('detectMention accepts WeChat mention spacing and strips leading bot mention', () => {
   const result = detectMention("@Netr0's Bot\u2005我的名字是什么", {}, { botMentionName: "Netr0's Bot" })
   assert.equal(result.isMentioned, true)

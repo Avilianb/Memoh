@@ -41,7 +41,7 @@ Quote support is evidence-based. The sidecar first checks raw payload fields suc
 
 Group quote triggering uses Memoh's native `is_reply_to_bot` directed-message path. The sidecar keeps a bounded, persisted set of recently observed outbound bot message IDs under `dataDir` and marks inbound quote messages as `isReplyToBot` when the quoted `messageId` is in that set. If WeChat does not expose a stable quoted message ID, it falls back to matching the quoted sender against `botMentionName`, `sessionName`, the receiver name, or the receiver ID.
 
-Images are received through Wechaty `message.toFileBox()`, saved under `mediaDir`, and passed to Memoh as `Attachment{Type:image, Path, Mime, Name, Size}`. Outbound attachments are evaluated through the same sidecar protocol, but real WeChat file sending still depends on the account and `wechaty-puppet-wechat4u` filebox behavior.
+Images and generic files are received through Wechaty `message.toFileBox()`, saved under `mediaDir`, and passed to Memoh as attachments with `Path`, `Mime`, `Name`, and `Size`. Image/audio/video/gif files are classified by Wechaty type, MIME, or extension; Office documents (`.doc`, `.docx`, `.xls`, `.xlsx`, `.ppt`, `.pptx`), PDF, text, CSV, JSON, Markdown, and archives fall back to `Attachment{Type:file}` with extension metadata. Outbound attachments are evaluated through the same sidecar protocol, but real WeChat file sending still depends on the account and `wechaty-puppet-wechat4u` filebox behavior.
 
 ## Verification
 
@@ -58,5 +58,6 @@ For real WeChat verification, enable `diagnosticRawPayload`, start the channel, 
 2. A WeChat quote/reply message mentioning the bot.
 3. A WeChat quote/reply message that quotes a recent bot message without an @ mention.
 4. An image.
+5. A generic file such as `.xlsx`, `.docx`, or `.pdf`.
 
 Check logs for `message.raw` keys and media files in `mediaDir`. Report quote as verified only when raw quote fields are present; otherwise report text-fallback only.
