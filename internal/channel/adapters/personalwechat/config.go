@@ -18,18 +18,19 @@ const (
 )
 
 type adapterConfig struct {
-	BridgeExecutable     string
-	BridgeScript         string
-	BridgeArgs           string
-	DataDir              string
-	MediaDir             string
-	SessionName          string
-	BotMentionName       string
-	AllowPrivate         bool
-	AllowGroups          bool
-	ContactWhitelist     []string
-	GroupWhitelist       []string
-	DiagnosticRawPayload bool
+	BridgeExecutable         string
+	BridgeScript             string
+	BridgeArgs               string
+	DataDir                  string
+	MediaDir                 string
+	SessionName              string
+	BotMentionName           string
+	AllowPrivate             bool
+	AllowGroups              bool
+	NativeVoiceTranscription bool
+	ContactWhitelist         []string
+	GroupWhitelist           []string
+	DiagnosticRawPayload     bool
 }
 
 type userConfig struct {
@@ -44,13 +45,14 @@ func normalizeConfig(raw map[string]any) (map[string]any, error) {
 		return nil, err
 	}
 	out := map[string]any{
-		"bridgeExecutable": cfg.BridgeExecutable,
-		"bridgeScript":     cfg.BridgeScript,
-		"dataDir":          cfg.DataDir,
-		"mediaDir":         cfg.MediaDir,
-		"sessionName":      cfg.SessionName,
-		"allowPrivate":     cfg.AllowPrivate,
-		"allowGroups":      cfg.AllowGroups,
+		"bridgeExecutable":         cfg.BridgeExecutable,
+		"bridgeScript":             cfg.BridgeScript,
+		"dataDir":                  cfg.DataDir,
+		"mediaDir":                 cfg.MediaDir,
+		"sessionName":              cfg.SessionName,
+		"allowPrivate":             cfg.AllowPrivate,
+		"allowGroups":              cfg.AllowGroups,
+		"nativeVoiceTranscription": cfg.NativeVoiceTranscription,
 	}
 	if cfg.BridgeArgs != "" {
 		out["bridgeArgs"] = cfg.BridgeArgs
@@ -72,15 +74,16 @@ func normalizeConfig(raw map[string]any) (map[string]any, error) {
 
 func parseConfig(raw map[string]any) (adapterConfig, error) {
 	cfg := adapterConfig{
-		BridgeExecutable: strings.TrimSpace(channel.ReadString(raw, "bridgeExecutable", "bridge_executable")),
-		BridgeScript:     strings.TrimSpace(channel.ReadString(raw, "bridgeScript", "bridge_script")),
-		BridgeArgs:       strings.TrimSpace(channel.ReadString(raw, "bridgeArgs", "bridge_args")),
-		DataDir:          strings.TrimSpace(channel.ReadString(raw, "dataDir", "data_dir")),
-		MediaDir:         strings.TrimSpace(channel.ReadString(raw, "mediaDir", "media_dir")),
-		SessionName:      strings.TrimSpace(channel.ReadString(raw, "sessionName", "session_name")),
-		BotMentionName:   strings.TrimSpace(channel.ReadString(raw, "botMentionName", "bot_mention_name")),
-		AllowPrivate:     true,
-		AllowGroups:      true,
+		BridgeExecutable:         strings.TrimSpace(channel.ReadString(raw, "bridgeExecutable", "bridge_executable")),
+		BridgeScript:             strings.TrimSpace(channel.ReadString(raw, "bridgeScript", "bridge_script")),
+		BridgeArgs:               strings.TrimSpace(channel.ReadString(raw, "bridgeArgs", "bridge_args")),
+		DataDir:                  strings.TrimSpace(channel.ReadString(raw, "dataDir", "data_dir")),
+		MediaDir:                 strings.TrimSpace(channel.ReadString(raw, "mediaDir", "media_dir")),
+		SessionName:              strings.TrimSpace(channel.ReadString(raw, "sessionName", "session_name")),
+		BotMentionName:           strings.TrimSpace(channel.ReadString(raw, "botMentionName", "bot_mention_name")),
+		AllowPrivate:             true,
+		AllowGroups:              true,
+		NativeVoiceTranscription: true,
 	}
 	if cfg.BridgeExecutable == "" {
 		cfg.BridgeExecutable = defaultBridgeExecutable
@@ -105,6 +108,9 @@ func parseConfig(raw map[string]any) (adapterConfig, error) {
 	}
 	if v, ok := readBool(raw, "diagnosticRawPayload", "diagnostic_raw_payload"); ok {
 		cfg.DiagnosticRawPayload = v
+	}
+	if v, ok := readBool(raw, "nativeVoiceTranscription", "native_voice_transcription"); ok {
+		cfg.NativeVoiceTranscription = v
 	}
 	cfg.ContactWhitelist = splitCSV(channel.ReadString(raw, "contactWhitelist", "contact_whitelist"))
 	cfg.GroupWhitelist = splitCSV(channel.ReadString(raw, "groupWhitelist", "group_whitelist"))

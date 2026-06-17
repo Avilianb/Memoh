@@ -18,6 +18,9 @@ func TestParseConfigDefaults(t *testing.T) {
 	if cfg.MediaDir == "" || cfg.DataDir == "" {
 		t.Fatalf("expected data/media dirs: %#v", cfg)
 	}
+	if !cfg.NativeVoiceTranscription {
+		t.Fatalf("native voice transcription should default to enabled: %#v", cfg)
+	}
 }
 
 func TestNormalizeTarget(t *testing.T) {

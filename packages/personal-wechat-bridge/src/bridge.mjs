@@ -29,6 +29,7 @@ function loadConfig() {
   cfg.sessionName ||= 'MemohPersonalWeChat'
   cfg.allowPrivate = cfg.allowPrivate !== false
   cfg.allowGroups = cfg.allowGroups !== false
+  cfg.nativeVoiceTranscription = cfg.nativeVoiceTranscription !== false
   cfg.contactWhitelist ||= []
   cfg.groupWhitelist ||= []
   return cfg

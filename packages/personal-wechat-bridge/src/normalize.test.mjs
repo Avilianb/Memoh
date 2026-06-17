@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { detectMention, detectReplyToBot, extractReply, normalizeMessage } from './normalize.mjs'
+import { findNativeVoiceTranscript } from './voice-transcription.mjs'
 
 test('extractReply uses explicit raw quote fields', () => {
   const { reply, text } = extractReply(
@@ -172,4 +173,55 @@ test('normalizeMessage marks group quote of bot message as reply to bot', async 
   assert.equal(normalized.isMentioned, false)
   assert.equal(normalized.isReplyToBot, true)
   assert.equal(normalized.reply.messageId, 'bot-msg-1')
+})
+
+test('findNativeVoiceTranscript reads WeChat native raw fields', () => {
+  const found = findNativeVoiceTranscript({
+    MsgType: 34,
+    VoiceLength: 2600,
+    VoiceTransText: '帮我看一下这个表',
+  })
+  assert.equal(found.text, '帮我看一下这个表')
+  assert.equal(found.source, 'VoiceTransText')
+})
+
+test('findNativeVoiceTranscript reads WeChat native XML payloads', () => {
+  const found = findNativeVoiceTranscript({
+    MsgType: 34,
+    Content: '<msg><voicetranstext><![CDATA[今晚几点开会]]></voicetranstext></msg>',
+  })
+  assert.equal(found.text, '今晚几点开会')
+  assert.equal(found.source, 'Content.xml:voicetranstext')
+})
+
+test('normalizeMessage maps native voice transcription to text', async () => {
+  const message = {
+    id: 'msg-voice',
+    payload: {
+      talkerId: 'wxid-a',
+      VoiceLength: 3200,
+      VoiceTransText: '总结一下这个语音',
+    },
+    type: () => 3,
+    toFileBox: async () => ({
+      name: 'message-msg-voice-audio.sil',
+      metadata: { voiceLength: 3200 },
+      toFile: async (filePath) => {
+        await import('node:fs/promises').then((fs) => fs.writeFile(filePath, 'silk-data'))
+      },
+    }),
+  }
+  const talker = { id: 'wxid-a', self: () => false }
+  const normalized = await normalizeMessage(
+    message,
+    { bot: { Message: { Type: { 3: 'Audio' } } }, talker, talkerName: 'Alice', talkerAlias: 'A' },
+    { mediaDir: await import('node:os').then((os) => os.tmpdir()), diagnosticRawPayload: true },
+  )
+  assert.equal(normalized.type, 'Audio')
+  assert.equal(normalized.text, '总结一下这个语音')
+  assert.equal(normalized.raw.nativeVoiceTranscription.provider, 'wechat_native')
+  assert.equal(normalized.raw.nativeVoiceTranscription.source, 'VoiceTransText')
+  assert.equal(normalized.attachments[0].type, 'audio')
+  assert.equal(normalized.attachments[0].mime, 'audio/silk')
+  assert.equal(normalized.attachments[0].metadata.voiceLength, 3200)
 })

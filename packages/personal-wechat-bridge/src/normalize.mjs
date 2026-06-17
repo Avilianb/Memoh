@@ -1,7 +1,9 @@
 import fs from 'node:fs'
 import path from 'node:path'
+import { extractNativeVoiceTranscription } from './voice-transcription.mjs'
 
 const MIME_BY_EXT = {
+  '.amr': 'audio/amr',
   '.csv': 'text/csv',
   '.doc': 'application/msword',
   '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -16,6 +18,7 @@ const MIME_BY_EXT = {
   '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
   '.rar': 'application/vnd.rar',
   '.rtf': 'application/rtf',
+  '.sil': 'audio/silk',
   '.tar': 'application/x-tar',
   '.txt': 'text/plain',
   '.webp': 'image/webp',
@@ -185,6 +188,17 @@ function rawPayload(message, cfg) {
     'listenerId',
     'roomId',
     'timestamp',
+    'Content',
+    'OriContent',
+    'VoiceLength',
+    'VoiceTransText',
+    'VoiceTranslateText',
+    'VoiceTransContent',
+    'TransContent',
+    'TranslateContent',
+    'Recognition',
+    'RecognitionText',
+    'SpeechText',
     'quote',
     'quoted',
     'refer',
@@ -209,6 +223,7 @@ async function saveFileBox(fileBox, cfg, messageId, msgType) {
   const filePath = path.join(dir, `${messageId}-${name}`)
   await fileBox.toFile(filePath, true)
   const stat = fs.statSync(filePath)
+  const fileBoxMetadata = fileBox.metadata && typeof fileBox.metadata === 'object' ? fileBox.metadata : {}
   return {
     type: kind || 'file',
     path: filePath,
@@ -216,6 +231,7 @@ async function saveFileBox(fileBox, cfg, messageId, msgType) {
     size: stat.size,
     mime,
     metadata: {
+      ...fileBoxMetadata,
       extension,
       wechatType: msgType,
     },
@@ -244,7 +260,8 @@ export async function extractAttachments(message, cfg, msgType) {
 
 export async function normalizeMessage(message, context, cfg) {
   const msgType = typeName(message, context.bot)
-  const rawText = msgType === 'Text' ? message.text?.() || '' : ''
+  const voiceTranscript = await extractNativeVoiceTranscription(message, context, cfg, msgType)
+  const rawText = msgType === 'Text' ? message.text?.() || '' : voiceTranscript?.text || ''
   const { reply, text: replyText } = extractReply(message.payload || {}, rawText)
   const mention = detectMention(replyText, context, cfg)
   const isReplyToBot = Boolean(context.room && detectReplyToBot(reply, context, cfg, context.outboundStore))
@@ -273,6 +290,9 @@ export async function normalizeMessage(message, context, cfg) {
     conversation,
     reply,
     attachments,
-    raw: rawPayload(message, cfg),
+    raw: {
+      ...rawPayload(message, cfg),
+      ...(voiceTranscript ? { nativeVoiceTranscription: { provider: voiceTranscript.provider, source: voiceTranscript.source } } : {}),
+    },
   }
 }
