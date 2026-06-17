@@ -2223,6 +2223,7 @@ func (p *ChannelInboundProcessor) loadInboundAttachmentPayload(
 	att channel.Attachment,
 ) (inboundAttachmentPayload, error) {
 	rawURL := strings.TrimSpace(att.URL)
+	rawPath := strings.TrimSpace(att.Path)
 	if rawURL != "" {
 		payload, err := openInboundAttachmentURL(ctx, rawURL)
 		if err == nil {
@@ -2235,7 +2236,7 @@ func (p *ChannelInboundProcessor) loadInboundAttachmentPayload(
 			return payload, nil
 		}
 		// When URL download fails and no other source exists, return URL error.
-		if strings.TrimSpace(att.PlatformKey) == "" && strings.TrimSpace(att.Base64) == "" {
+		if strings.TrimSpace(att.PlatformKey) == "" && strings.TrimSpace(att.Base64) == "" && rawPath == "" {
 			return inboundAttachmentPayload{}, err
 		}
 	}
@@ -2256,7 +2257,7 @@ func (p *ChannelInboundProcessor) loadInboundAttachmentPayload(
 		}, nil
 	}
 	platformKey := strings.TrimSpace(att.PlatformKey)
-	if platformKey == "" {
+	if platformKey == "" && rawPath == "" {
 		return inboundAttachmentPayload{}, errors.New("attachment has no ingestible payload")
 	}
 	resolver := p.resolveAttachmentResolver(msg.Channel)
@@ -2265,7 +2266,7 @@ func (p *ChannelInboundProcessor) loadInboundAttachmentPayload(
 	}
 	resolved, err := resolver.ResolveAttachment(ctx, cfg, att)
 	if err != nil {
-		return inboundAttachmentPayload{}, fmt.Errorf("resolve attachment by platform key: %w", err)
+		return inboundAttachmentPayload{}, fmt.Errorf("resolve attachment: %w", err)
 	}
 	if resolved.Reader == nil {
 		return inboundAttachmentPayload{}, errors.New("resolved attachment reader is nil")

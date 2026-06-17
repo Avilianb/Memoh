@@ -1207,6 +1207,69 @@ func TestChannelInboundProcessorIngestsPlatformKeyWithResolver(t *testing.T) {
 	}
 }
 
+func TestChannelInboundProcessorIngestsPathWithResolver(t *testing.T) {
+	channelIdentitySvc := &fakeChannelIdentityService{channelIdentity: identities.ChannelIdentity{ID: "channelIdentity-path-resolver"}}
+	policySvc := &fakePolicyService{}
+	chatSvc := &fakeChatService{resolveResult: route.ResolveConversationResult{ChatID: "chat-path-resolver", RouteID: "route-path-resolver"}}
+	gateway := &fakeChatGateway{
+		resp: conversation.ChatResponse{
+			Messages: []conversation.ModelMessage{
+				{Role: "assistant", Content: conversation.NewTextContent("ok")},
+			},
+		},
+	}
+	registry := channel.NewRegistry()
+	registry.MustRegister(&fakeAttachmentResolverAdapter{})
+	processor := NewChannelInboundProcessor(slog.Default(), registry, chatSvc, chatSvc, gateway, channelIdentitySvc, policySvc, "", 0)
+	mediaSvc := &fakeMediaIngestor{nextID: "asset-path-resolved-1", nextMime: "application/octet-stream"}
+	processor.SetMediaService(mediaSvc)
+	sender := &fakeReplySender{}
+
+	cfg := channel.ChannelConfig{ID: "cfg-path-resolver", BotID: "bot-1", ChannelType: channel.ChannelType("resolver-test")}
+	msg := channel.InboundMessage{
+		BotID:   "bot-1",
+		Channel: channel.ChannelType("resolver-test"),
+		Message: channel.Message{
+			ID:   "msg-path-resolver-1",
+			Text: "attachment path resolver test",
+			Attachments: []channel.Attachment{
+				{
+					Type: channel.AttachmentFile,
+					Path: "/tmp/report.xls",
+				},
+			},
+		},
+		ReplyTarget: "resolver-target",
+		Sender:      channel.Identity{SubjectID: "resolver-user"},
+		Conversation: channel.Conversation{
+			ID:   "resolver-conv",
+			Type: channel.ConversationTypePrivate,
+		},
+	}
+
+	if err := processor.HandleInbound(context.Background(), cfg, msg, sender); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if mediaSvc.calls != 1 {
+		t.Fatalf("expected media ingest to be called once, got %d", mediaSvc.calls)
+	}
+	if len(mediaSvc.payloads) != 1 || string(mediaSvc.payloads[0]) != "resolver-bytes" {
+		t.Fatalf("unexpected media payloads: %#v", mediaSvc.payloads)
+	}
+	if len(gateway.gotReq.Attachments) != 1 {
+		t.Fatalf("expected one gateway attachment, got %d", len(gateway.gotReq.Attachments))
+	}
+	if got := gateway.gotReq.Attachments[0].ContentHash; got != "asset-path-resolved-1" {
+		t.Fatalf("expected resolved asset id, got %q", got)
+	}
+	if got := gateway.gotReq.Attachments[0].Path; got != "/data/media/test/asset-path-resolved-1" {
+		t.Fatalf("expected accessible media path, got %q", got)
+	}
+	if len(chatSvc.persistedIn) != 0 {
+		t.Fatalf("user message persistence is deferred to storeRound; expected 0 persisted, got %d", len(chatSvc.persistedIn))
+	}
+}
+
 func TestChannelInboundProcessorIngestsBase64Attachment(t *testing.T) {
 	channelIdentitySvc := &fakeChannelIdentityService{channelIdentity: identities.ChannelIdentity{ID: "channelIdentity-base64"}}
 	policySvc := &fakePolicyService{}
